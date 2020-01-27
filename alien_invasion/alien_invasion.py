@@ -1,5 +1,6 @@
 import sys
 import pygame
+from bullet import Bullet
 from settings import Settings
 from ship import Ship
 import ctypes
