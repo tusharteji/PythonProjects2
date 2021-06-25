@@ -11,12 +11,12 @@ class AlienInvasion:
 
     def __init__(self):
         """Initialize the game, and create game resources."""
-        pygame.init()
+        pygame.init()       # Initializes game's background settings
         self.settings = Settings()
 
         ctypes.windll.user32.SetProcessDPIAware()
-        true_res = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
-        self.screen = pygame.display.set_mode(true_res, pygame.FULLSCREEN)
+        true_res = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))     # determines your machine's resolution to adjust game's display
+        self.screen = pygame.display.set_mode(true_res, pygame.FULLSCREEN)      # creates game's display with given size
         self.settings.screen_width = self.screen.get_rect().width
         self.settings.screen_height = self.screen.get_rect().height
         pygame.display.set_caption("Alien Invasion")
@@ -30,7 +30,7 @@ class AlienInvasion:
     def _check_events(self):
         """Respond to key-presses and mouse events."""
         # Watch for keyboard and mouse events.
-        for event in pygame.event.get():
+        for event in pygame.event.get():        # get method detects the event
             if event.type == pygame.QUIT:
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
