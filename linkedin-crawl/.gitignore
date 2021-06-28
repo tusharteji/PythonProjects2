@@ -1,0 +1,6 @@
+notes.txt
+venv/
+.idea/
+conf.ini
+.vscode/
+__pycache__/
