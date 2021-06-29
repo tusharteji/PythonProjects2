@@ -3,7 +3,7 @@ import configparser
 from time import sleep
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, WebDriverException
 
 
 def parse_config():
@@ -68,10 +68,15 @@ def add_experience_filter(driver, exp_levels):
     drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Experience Level filter")]/li-icon')
     drop_down.click()
     for level in exp_levels:
-        element = driver.find_element_by_xpath(f'//input[@type = "checkbox" and @name = "{level}"]')
-        driver.execute_script("arguments[0].click();", element)
-    show_res = driver.find_element_by_xpath('//button[@data-control-name = "filter_show_results"]/span')
-    driver.execute_script("arguments[0].click();", show_res)
+        try:
+            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {level}"]')
+            driver.execute_script("arguments[0].click();", element)
+        except StaleElementReferenceException:
+            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {level}"]')
+            driver.execute_script("arguments[0].click();", element)
+        sleep(2)
+    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Experience Level filter")]/li-icon')
+    drop_down.click()
     sleep(2)
 
 
@@ -79,11 +84,23 @@ def add_job_type_filter(driver, job_types):
     drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Job Type filter")]/li-icon')
     drop_down.click()
     for jobtype in job_types:
-        element = driver.find_element_by_xpath(f'//input[@type = "checkbox" and @name = "{jobtype}"]')
-        driver.execute_script("arguments[0].click();", element)
-    show_res = driver.find_element_by_xpath('//button[@data-control-name = "filter_show_results"]/span')
-    driver.execute_script("arguments[0].click();", show_res)
+        try:
+            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {jobtype}"]')
+            driver.execute_script("arguments[0].click();", element)
+        except StaleElementReferenceException:
+            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {jobtype}"]')
+            driver.execute_script("arguments[0].click();", element)
+        sleep(2)
+    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Job Type filter")]/li-icon')
+    drop_down.click()
     sleep(2)
+
+
+def scrape_jobs(driver):
+    jobs = driver.find_element_by_xpath('//ul[contains(@class, "jobs-search-results")]')
+    print(jobs)
+    for i, job in enumerate(jobs):
+        job.find_element_by_xpath(f'.//li[{i+1}]/div/div/div[1]/div[2]/div[1]/a').click()
 
 
 if __name__ == "__main__":
@@ -120,6 +137,9 @@ if __name__ == "__main__":
     search_jobs(cdriver, keywords, location)
     add_experience_filter(cdriver, experience)
     add_job_type_filter(cdriver, jobtypes)
+
+    # Scrape jobs
+    scrape_jobs(cdriver)
 
     # Close driver
     cdriver.close()
