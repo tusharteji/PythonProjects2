@@ -2,8 +2,15 @@ from argparse import ArgumentParser
 import configparser
 from time import sleep
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import StaleElementReferenceException, NoSuchElementException, WebDriverException
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+# Constants
+WAIT = 3    # Seconds
 
 
 def parse_config():
@@ -18,6 +25,7 @@ def parse_args():
     parser.add_argument('-l', '--location', default='United States')
     parser.add_argument('-e', '--experience', action='append')
     parser.add_argument('-j', '--jobtypes', action='append')
+    parser.add_argument('-p', '--pages', type=int, default=10)
     arguments = parser.parse_args()
     return arguments
 
@@ -34,18 +42,18 @@ def iniitialize_driver(driver_loc):
 
 def login(driver, home, user, pwd):
     driver.get(home)
-    sleep(1)
+    sleep(WAIT - 2)
     driver.find_element_by_xpath('//*[@id="session_key"]').send_keys(user)
     driver.find_element_by_xpath('//*[@id="session_password"]').send_keys(pwd)
     driver.find_element_by_xpath('//*[@id="main-content"]/section[1]/div[2]/form/button').click()
-    sleep(1)
+    sleep(WAIT - 2)
     try:
         # Checking if the login page has loaded
         driver.find_element_by_xpath('//*[@id="ember26"]')
     except NoSuchElementException:
         # Handling 'Remember me on this browser' page
         driver.find_element_by_xpath('//*[@id="remember-me-prompt__form-secondary"]/button').click()
-        sleep(1)
+        sleep(WAIT - 2)
         try:
             driver.find_element_by_xpath('//*[@id="ember26"]')
         except NoSuchElementException:
@@ -54,53 +62,60 @@ def login(driver, home, user, pwd):
 
 def open_jobs(driver):
     driver.find_element_by_xpath('//*[@id="ember26"]').click()
-    sleep(2)
+    sleep(WAIT - 1)
 
 
 def search_jobs(driver, kws, loc):
-    driver.find_element_by_xpath('//input[starts-with(@id, "jobs-search-box-keyword")]').send_keys(kws)
-    sleep(1)
-    driver.find_element_by_xpath('//input[starts-with(@id, "jobs-search-box-location")]').send_keys(loc + Keys.RETURN)
-    sleep(2)
+    kw_xpath = '//input[starts-with(@id, "jobs-search-box-keyword")]'
+    kw_element = WebDriverWait(driver, WAIT).until(EC.presence_of_element_located((By.XPATH, kw_xpath)))
+    kw_element.send_keys(kws)
+    sleep(WAIT - 2)
+    loc_xpath = '//input[starts-with(@id, "jobs-search-box-location")]'
+    kw_element = WebDriverWait(driver, WAIT).until(EC.presence_of_element_located((By.XPATH, loc_xpath)))
+    kw_element.send_keys(loc + Keys.RETURN)
+    sleep(WAIT - 1)
 
 
-def add_experience_filter(driver, exp_levels):
-    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Experience Level filter")]/li-icon')
+def add_filter(driver, filter_type, filter_values):
+    drop_down_xpath = f'//button[contains(@aria-label, "{filter_type} filter")]/li-icon'
+    drop_down = WebDriverWait(driver, WAIT).until(EC.presence_of_element_located((By.XPATH, drop_down_xpath)))
     drop_down.click()
-    for level in exp_levels:
-        try:
-            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {level}"]')
-            driver.execute_script("arguments[0].click();", element)
-        except StaleElementReferenceException:
-            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {level}"]')
-            driver.execute_script("arguments[0].click();", element)
-        sleep(2)
-    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Experience Level filter")]/li-icon')
+    for filter_value in filter_values:
+        sleep(WAIT - 1)
+        element = driver.find_element_by_xpath(f'//span[text() = "{filter_value}"]')
+        sleep(WAIT - 1)
+        element.click()
+    drop_down = driver.find_element_by_xpath(drop_down_xpath)
     drop_down.click()
-    sleep(2)
+    sleep(WAIT)
 
 
-def add_job_type_filter(driver, job_types):
-    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Job Type filter")]/li-icon')
-    drop_down.click()
-    for jobtype in job_types:
-        try:
-            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {jobtype}"]')
-            driver.execute_script("arguments[0].click();", element)
-        except StaleElementReferenceException:
-            element = driver.find_element_by_xpath(f'//input[@aria-label = "Filter by {jobtype}"]')
-            driver.execute_script("arguments[0].click();", element)
-        sleep(2)
-    drop_down = driver.find_element_by_xpath('//button[contains(@aria-label, "Job Type filter")]/li-icon')
-    drop_down.click()
-    sleep(2)
+def scroll_down_to_load_entire_page(driver):
+    div_query_selector = 'document.querySelector("body > div.application-outlet > div.authentication-outlet > ' \
+                         'div.job-search-ext > div > div > section.jobs-search__left-rail > div > div")'
+    scroll_height = driver.execute_script(f'return {div_query_selector}.scrollHeight')
+    for halt in range(700, scroll_height, 700):
+        driver.execute_script(f'{div_query_selector}.scrollTo(0, {halt})')
+        sleep(WAIT - 2)
+    driver.execute_script(f'{div_query_selector}.scrollTo(0, 0)')
 
 
-def scrape_jobs(driver):
-    jobs = driver.find_element_by_xpath('//ul[contains(@class, "jobs-search-results")]')
-    print(jobs)
-    for i, job in enumerate(jobs):
-        job.find_element_by_xpath(f'.//li[{i+1}]/div/div/div[1]/div[2]/div[1]/a').click()
+def go_to_page(driver, page):
+    if page != 1:
+        element = driver.find_element_by_xpath(f'//button[@aria-label = "Page {page}"]')
+        element.click()
+    sleep(WAIT + 1)
+
+
+def scrape_jobs(driver, total_pages):
+    for page in range(1, total_pages + 1):
+        go_to_page(driver, page)
+        scroll_down_to_load_entire_page(driver)
+        jobs = driver.find_elements_by_xpath('//a[contains(@class, "job-card-list__title") and @tabindex = "0"]')
+        for job in jobs:
+            driver.execute_script("arguments[0].scrollIntoView();", job)
+            driver.execute_script("arguments[0].click();", job)
+            sleep(WAIT - 1)
 
 
 if __name__ == "__main__":
@@ -116,6 +131,7 @@ if __name__ == "__main__":
         jobtypes = args.jobtypes
     else:
         jobtypes = ["Full-time"]
+    pages = args.pages
 
     # Parsing config.ini file
     linkedin, chrome = parse_config()
@@ -135,12 +151,15 @@ if __name__ == "__main__":
 
     # Search jobs
     search_jobs(cdriver, keywords, location)
-    add_experience_filter(cdriver, experience)
-    add_job_type_filter(cdriver, jobtypes)
+
+    # Add experience filter
+    add_filter(cdriver, "Experience Level", experience)
+
+    # Add job type filter
+    add_filter(cdriver, "Job Type", jobtypes)
 
     # Scrape jobs
-    scrape_jobs(cdriver)
+    scrape_jobs(cdriver, pages)
 
     # Close driver
     cdriver.close()
-
