@@ -1,5 +1,7 @@
 from argparse import ArgumentParser
 import configparser
+from os import path
+import pandas as pd
 from time import sleep
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
@@ -49,7 +51,7 @@ def login(driver, home, user, pwd):
     sleep(WAIT - 2)
     try:
         # Checking if the login page has loaded
-        driver.find_element_by_xpath('//*[@id="ember26"]')
+        driver.find_element_by_xpath('//a[contains(@href, "jobs")]')
     except NoSuchElementException:
         # Handling 'Remember me on this browser' page
         driver.find_element_by_xpath('//*[@id="remember-me-prompt__form-secondary"]/button').click()
@@ -61,7 +63,7 @@ def login(driver, home, user, pwd):
 
 
 def open_jobs(driver):
-    driver.find_element_by_xpath('//*[@id="ember26"]').click()
+    driver.find_element_by_xpath('//a[contains(@href, "jobs")]').click()
     sleep(WAIT - 1)
 
 
@@ -108,6 +110,7 @@ def go_to_page(driver, page):
 
 
 def scrape_jobs(driver, total_pages):
+    scrape_data = []
     for page in range(1, total_pages + 1):
         go_to_page(driver, page)
         scroll_down_to_load_entire_page(driver)
@@ -115,7 +118,55 @@ def scrape_jobs(driver, total_pages):
         for job in jobs:
             driver.execute_script("arguments[0].scrollIntoView();", job)
             driver.execute_script("arguments[0].click();", job)
-            sleep(WAIT - 1)
+            sleep(WAIT)
+            # Collecting information
+            title = driver.find_element_by_xpath('.//a[contains(@href, "jobs") and @class="ember-view"]/h2').text
+            title_link = driver.find_element_by_xpath('.//a[contains(@href, "jobs") and '
+                                                      '@class="ember-view"]').get_attribute("href")
+            company = driver.find_element_by_xpath('.//div[@class="mt2"]/span[1]/span[1]/'
+                                                   'a[contains(@href, "company")]').text
+            try:
+                experience_level = driver.find_element_by_xpath('.//div[@class = "mt5 mb2"]/div[1]/span').text
+                experience_level = experience_level.split("·")[-1].strip() if "·" in experience_level else ""
+            except NoSuchElementException:
+                experience_level = ""
+            try:
+                industry = driver.find_element_by_xpath('.//div[@class = "mt5 mb2"]/div[2]/span').text
+                industry = industry.split("·")[-1].strip() if "·" in industry else ""
+            except NoSuchElementException:
+                industry = ""
+            try:
+                apply_button = driver.find_element_by_xpath('.//button[contains(@class, "jobs-apply-button")]/span')
+                apply = "Yes" if apply_button.text == "Apply now" else "No"
+            except NoSuchElementException:
+                try:
+                    apply = driver.find_element_by_xpath('.//div[contains(@class, "artdeco-inline-feedback")]/'
+                                                         'span[@class = "artdeco-inline-feedback__message"]').text
+                except NoSuchElementException:
+                    continue
+            apply_link = title_link
+            scrape_data.append(
+                {
+                    "Title": title,
+                    "Company": company,
+                    "Experience Level": experience_level,
+                    "Industry": industry,
+                    "Easy Apply": apply,
+                    "Link": apply_link
+                }
+            )
+    return scrape_data
+
+
+def create_dataframe(data):
+    df = pd.DataFrame(data)
+    return df
+
+
+def save_as_excel(df):
+    file_with_full_path = path.join(path.dirname(path.abspath(__file__)), "linkedinjobs.xlsx")
+    with pd.ExcelWriter(file_with_full_path) as writer:
+        df.to_excel(writer)
 
 
 if __name__ == "__main__":
@@ -159,7 +210,13 @@ if __name__ == "__main__":
     add_filter(cdriver, "Job Type", jobtypes)
 
     # Scrape jobs
-    scrape_jobs(cdriver, pages)
+    scraped_data = scrape_jobs(cdriver, pages)
+
+    # Create Dataframe
+    dframe = create_dataframe(scraped_data)
+
+    # Save to Excel
+    save_as_excel(dframe)
 
     # Close driver
     cdriver.close()
