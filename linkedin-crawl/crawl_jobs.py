@@ -1,8 +1,10 @@
 from argparse import ArgumentParser
 import configparser
+import mysql.connector
 from os import path
 import pandas as pd
-from time import sleep
+from re import search
+from time import sleep, strftime
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from selenium.webdriver.common.by import By
@@ -111,6 +113,7 @@ def go_to_page(driver, page):
 
 def scrape_jobs(driver, total_pages):
     scrape_data = []
+    sr_no = 1
     for page in range(1, total_pages + 1):
         go_to_page(driver, page)
         scroll_down_to_load_entire_page(driver)
@@ -123,6 +126,7 @@ def scrape_jobs(driver, total_pages):
             title = driver.find_element_by_xpath('.//a[contains(@href, "jobs") and @class="ember-view"]/h2').text
             title_link = driver.find_element_by_xpath('.//a[contains(@href, "jobs") and '
                                                       '@class="ember-view"]').get_attribute("href")
+            job_id = search(r'/jobs/view/(\d+)/', title_link).groups()[0]
             company = driver.find_element_by_xpath('.//div[@class="mt2"]/span[1]/span[1]/'
                                                    'a[contains(@href, "company")]').text
             try:
@@ -144,29 +148,38 @@ def scrape_jobs(driver, total_pages):
                                                          'span[@class = "artdeco-inline-feedback__message"]').text
                 except NoSuchElementException:
                     continue
-            apply_link = title_link
             scrape_data.append(
                 {
-                    "Title": title,
+                    "Sr. No.": sr_no,
+                    "Job ID": job_id,
+                    "Title": f'=HYPERLINK("{title_link}", "{title}")',
                     "Company": company,
                     "Experience Level": experience_level,
                     "Industry": industry,
                     "Easy Apply": apply,
-                    "Link": apply_link
+                    "Applied?": 'No'
                 }
             )
+            sr_no += 1
     return scrape_data
 
 
 def create_dataframe(data):
     df = pd.DataFrame(data)
+    df["Title"] = df["Title"].apply(lambda x: x)
     return df
 
 
-def save_as_excel(df):
-    file_with_full_path = path.join(path.dirname(path.abspath(__file__)), "linkedinjobs.xlsx")
-    with pd.ExcelWriter(file_with_full_path) as writer:
-        df.to_excel(writer)
+def save_to_database(data):
+    pass
+
+
+def save_to_excel(df):
+    datetime_stmp = strftime("%Y%m%d-%H%M%S")
+    file_with_full_path = path.join(path.dirname(path.abspath(__file__)), f"LinkedIn-Jobs-{datetime_stmp}.xlsx")
+    with pd.ExcelWriter(file_with_full_path, engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name="Sheet1", index=False)
+        writer.save()
 
 
 if __name__ == "__main__":
@@ -216,7 +229,7 @@ if __name__ == "__main__":
     dframe = create_dataframe(scraped_data)
 
     # Save to Excel
-    save_as_excel(dframe)
+    save_to_excel(dframe)
 
     # Close driver
     cdriver.close()
