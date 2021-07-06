@@ -103,18 +103,24 @@ class CrawlJobs:
                 title_link = self.driver.find_element_by_xpath('.//a[contains(@href, "jobs") and '
                                                                '@class="ember-view"]').get_attribute("href")
                 job_id = search(r'/jobs/view/(\d+)/', title_link).groups()[0]
-                company = self.driver.find_element_by_xpath('.//div[@class="mt2"]/span[1]/span[1]/'
-                                                            'a[contains(@href, "company")]').text
+                try:
+                    company = self.driver.find_element_by_xpath('.//div[@class="mt2"]/span[1]/span[1]/'
+                                                                'a[contains(@href, "company")]').text
+                except NoSuchElementException:
+                    try:
+                        company = self.driver.find_element_by_xpath('.//div[@class="mt2"]/span[1]/span[1]').text
+                    except NoSuchElementException:
+                        company = "Unknown"
                 try:
                     experience_level = self.driver.find_element_by_xpath('.//div[@class = "mt5 mb2"]/div[1]/span').text
                     experience_level = experience_level.split("·")[-1].strip() if "·" in experience_level else ""
                 except NoSuchElementException:
-                    experience_level = ""
+                    experience_level = "Unknown"
                 try:
                     industry = self.driver.find_element_by_xpath('.//div[@class = "mt5 mb2"]/div[2]/span').text
                     industry = industry.split("·")[-1].strip() if "·" in industry else ""
                 except NoSuchElementException:
-                    industry = ""
+                    industry = "Unknown"
                 try:
                     apply_button = self.driver.find_element_by_xpath('.//button[contains(@class, '
                                                                      '"jobs-apply-button")]/span')
