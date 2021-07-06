@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 import configparser
 import mysql.connector
-from os import path
+from os import listdir, mkdir, path
 import pandas as pd
 from re import search
 from time import sleep, strftime
@@ -71,11 +71,11 @@ def open_jobs(driver):
 
 def search_jobs(driver, kws, loc):
     kw_xpath = '//input[starts-with(@id, "jobs-search-box-keyword")]'
-    kw_element = WebDriverWait(driver, WAIT).until(EC.presence_of_element_located((By.XPATH, kw_xpath)))
+    kw_element = WebDriverWait(driver, WAIT + 2).until(EC.presence_of_element_located((By.XPATH, kw_xpath)))
     kw_element.send_keys(kws)
     sleep(WAIT - 2)
     loc_xpath = '//input[starts-with(@id, "jobs-search-box-location")]'
-    kw_element = WebDriverWait(driver, WAIT).until(EC.presence_of_element_located((By.XPATH, loc_xpath)))
+    kw_element = WebDriverWait(driver, WAIT + 2).until(EC.presence_of_element_located((By.XPATH, loc_xpath)))
     kw_element.send_keys(loc + Keys.RETURN)
     sleep(WAIT - 1)
 
@@ -113,7 +113,6 @@ def go_to_page(driver, page):
 
 def scrape_jobs(driver, total_pages):
     scrape_data = []
-    sr_no = 1
     for page in range(1, total_pages + 1):
         go_to_page(driver, page)
         scroll_down_to_load_entire_page(driver)
@@ -150,36 +149,55 @@ def scrape_jobs(driver, total_pages):
                     continue
             scrape_data.append(
                 {
-                    "Sr. No.": sr_no,
                     "Job ID": job_id,
                     "Title": f'=HYPERLINK("{title_link}", "{title}")',
                     "Company": company,
                     "Experience Level": experience_level,
                     "Industry": industry,
                     "Easy Apply": apply,
-                    "Applied?": 'No'
+                    "Applied?": 'Yes' if 'applied' in apply.lower() else 'No'
                 }
             )
-            sr_no += 1
     return scrape_data
 
 
-def create_dataframe(data):
-    df = pd.DataFrame(data)
-    df["Title"] = df["Title"].apply(lambda x: x)
+def remove_duplicates(df, directory):
+    previous_dfs = pd.DataFrame()
+    old_files = listdir(directory)
+    for file in old_files:
+        if file.endswith('.xlsx'):
+            df_temp = pd.read_excel(path.join(directory, file))
+            previous_dfs = previous_dfs.append(df_temp, ignore_index=True)
+    if previous_dfs.empty:
+        return df
+    previous_dfs = previous_dfs.applymap(str)
+    df = df.applymap(str)
+    condition = df['Job ID'].isin(previous_dfs['Job ID'])
+    df.drop(df[condition].index, inplace=True)
+    df.reset_index()
     return df
 
 
-def save_to_database(data):
-    pass
+def create_dataframe(data, folder):
+    df = pd.DataFrame(data)
+    df["Title"] = df["Title"].apply(lambda x: x)
+    df_final = remove_duplicates(df, folder)
+    return df_final
 
 
-def save_to_excel(df):
+def file_setup():
     datetime_stmp = strftime("%Y%m%d-%H%M%S")
-    file_with_full_path = path.join(path.dirname(path.abspath(__file__)), f"LinkedIn-Jobs-{datetime_stmp}.xlsx")
-    with pd.ExcelWriter(file_with_full_path, engine="xlsxwriter") as writer:
+    curr_dir = path.dirname(path.abspath(__file__))
+    directory = path.join(curr_dir, "Jobs")
+    if not path.exists(directory):
+        mkdir(directory)
+    file_with_full_path = path.join(directory, f"LinkedIn-Jobs-{datetime_stmp}.xlsx")
+    return directory, file_with_full_path
+
+
+def save_to_excel(df, file):
+    with pd.ExcelWriter(file, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="Sheet1", index=False)
-        writer.save()
 
 
 if __name__ == "__main__":
@@ -199,9 +217,7 @@ if __name__ == "__main__":
 
     # Parsing config.ini file
     linkedin, chrome = parse_config()
-    homepage = linkedin["homepage"]
-    username = linkedin["username"]
-    password = linkedin["password"]
+    homepage, username, password = linkedin["homepage"], linkedin["username"], linkedin["password"]
     chromedriver = chrome["location"]
 
     # Initiating the chrome driver
@@ -225,11 +241,14 @@ if __name__ == "__main__":
     # Scrape jobs
     scraped_data = scrape_jobs(cdriver, pages)
 
+    # File and Folder setup
+    folder_path, file_path = file_setup()
+
     # Create Dataframe
-    dframe = create_dataframe(scraped_data)
+    dframe = create_dataframe(scraped_data, folder_path)
 
     # Save to Excel
-    save_to_excel(dframe)
+    save_to_excel(dframe, file_path)
 
     # Close driver
     cdriver.close()
