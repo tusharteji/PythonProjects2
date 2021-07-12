@@ -4,12 +4,14 @@ import configparser
 
 
 def parse_config():
+    """Parses conf.ini configuration file for usernames and passwords"""
     config = configparser.ConfigParser()
     config.read("conf.ini")
     return config["linkedInAccount"], config["chromedriver"]
 
 
 def parse_args():
+    """Parses command line arguments"""
     parser = ArgumentParser(description="LinkedIn Job Search Attributes")
     parser.add_argument('-k', '--keywords', default='Python Developer')
     parser.add_argument('-l', '--location', default='United States')
@@ -23,17 +25,17 @@ def parse_args():
 if __name__ == "__main__":
     # Parsing command line arguments
     args = parse_args()
-    keywords = args.keywords
-    location = args.location
+    keywords = args.keywords    # Job search keyword, for instance, 'Python Developer'
+    location = args.location    # Job search location, for instance, 'United States'
     if args.experience:
-        experience = args.experience
+        experience = args.experience    # Experience level filters, for instance, ["Entry level", "Associate"]
     else:
-        experience = ['Entry level', 'Associate']
+        experience = ["Entry level", "Associate"]
     if args.jobtypes:
-        jobtypes = args.jobtypes
+        jobtypes = args.jobtypes    # Job types filter, for instance, ["Full-time", "Part-time"]
     else:
         jobtypes = ["Full-time"]
-    pages = args.pages
+    pages = args.pages  # Number of pages to scrape, for instance, 10
 
     # Parsing config.ini file
     linkedin, chrome = parse_config()
