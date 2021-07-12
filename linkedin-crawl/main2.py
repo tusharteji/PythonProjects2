@@ -43,7 +43,7 @@ def speak_back(audio_string):
 
 
 def respond(data):
-    if "hi babes" in data:
+    if "hello friend" in data:
         task = get_voice_input("Hi Tushar, what can I do?")
         if "default" in task and "task" in task:
             speak_back("I am on it!")
