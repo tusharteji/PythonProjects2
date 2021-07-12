@@ -17,7 +17,7 @@ WAIT = 3    # Seconds
 class CrawlJobs:
 
     def __init__(self, cdriver):
-        # Initiating the chrome driver
+        """Initiates the chrome driver"""
         options = webdriver.ChromeOptions()
         options.add_argument("--start-maximized")
         try:
@@ -26,6 +26,7 @@ class CrawlJobs:
             self.driver = webdriver.Chrome(executable_path=cdriver, options=options)
 
     def login(self, home, user, pwd):
+        """Opens LinkedIn home page and logs into your linkedIn account using credentials from the config file"""
         self.driver.get(home)
         sleep(WAIT - 2)
         self.driver.find_element_by_xpath('//*[@id="session_key"]').send_keys(user)
@@ -45,20 +46,24 @@ class CrawlJobs:
                 raise Exception("Unable to log into Linkedin Account!")
 
     def open_jobs(self):
+        """Opens the jobs tab from LinkedIn's home page"""
         self.driver.find_element_by_xpath('//a[contains(@href, "jobs")]').click()
         sleep(WAIT - 1)
 
     def search_jobs(self, kws, loc):
+        """Searches jobs with keywords and location as provided from command line arguments (main1) or from the speech
+        assistant (main2)"""
         kw_xpath = '//input[starts-with(@id, "jobs-search-box-keyword")]'
         kw_element = WebDriverWait(self.driver, WAIT + 2).until(EC.presence_of_element_located((By.XPATH, kw_xpath)))
         kw_element.send_keys(kws)
         sleep(WAIT - 2)
         loc_xpath = '//input[starts-with(@id, "jobs-search-box-location")]'
-        kw_element = WebDriverWait(self.driver, WAIT + 2).until(EC.presence_of_element_located((By.XPATH, loc_xpath)))
-        kw_element.send_keys(loc + Keys.RETURN)
+        loc_element = WebDriverWait(self.driver, WAIT + 2).until(EC.presence_of_element_located((By.XPATH, loc_xpath)))
+        loc_element.send_keys(loc + Keys.RETURN)
         sleep(WAIT - 1)
 
     def add_filter(self, filter_type, filter_values):
+        """Adds Experience level filters and Job type filters before scraping through the list"""
         drop_down_xpath = f'//button[contains(@aria-label, "{filter_type} filter")]/li-icon'
         drop_down = WebDriverWait(self.driver, WAIT).until(EC.presence_of_element_located((By.XPATH, drop_down_xpath)))
         drop_down.click()
@@ -72,6 +77,8 @@ class CrawlJobs:
         sleep(WAIT)
 
     def scroll_down_to_load_entire_page(self):
+        """The list loads fully only when you scroll down to the end of the page. This method scrolls the page all
+        the way to the end and returns back to the top"""
         div_query_selector = 'document.querySelector("body > div.application-outlet > div.authentication-outlet > ' \
                              'div.job-search-ext > div > div > section.jobs-search__left-rail > div > div")'
         scroll_height = self.driver.execute_script(f'return {div_query_selector}.scrollHeight')
@@ -81,12 +88,15 @@ class CrawlJobs:
         self.driver.execute_script(f'{div_query_selector}.scrollTo(0, 0)')
 
     def go_to_page(self, page):
+        """Clicks on the page number to go to the next page"""
         if page != 1:
             element = self.driver.find_element_by_xpath(f'//button[@aria-label = "Page {page}"]')
             element.click()
         sleep(WAIT + 1)
 
     def scrape_jobs(self, total_pages):
+        """This is the main method in the script that scrapes the information from the list of jobs by going to each
+        job section one by one"""
         scrape_data = []
         for page in range(1, total_pages + 1):
             self.go_to_page(page)
@@ -147,6 +157,8 @@ class CrawlJobs:
 
     @staticmethod
     def remove_duplicates(df, directory):
+        """Concatenates job listings from all the previous xlsx documents downloaded previously into
+        a single dataframe and removes any duplicates from the current listing that have already been scraped before"""
         previous_dfs = pd.DataFrame()
         old_files = listdir(directory)
         for file in old_files:
@@ -163,13 +175,15 @@ class CrawlJobs:
         return df
 
     def create_dataframe(self, data, folder):
+        """Creates dataframe from the collected/scraped data returned by the scrape_jobs method"""
         df = pd.DataFrame(data)
-        df["Title"] = df["Title"].apply(lambda x: x)
+        df["Title"] = df["Title"].apply(lambda x: x)    # Applies hyperlink onto each job title to link to the job page
         df_final = self.remove_duplicates(df, folder)
         return df_final
 
     @staticmethod
     def file_setup():
+        """Sets up the destination directory and returns the directory path and file name"""
         datetime_stmp = strftime("%Y%m%d-%H%M%S")
         curr_dir = path.dirname(path.abspath(__file__))
         directory = path.join(curr_dir, "Jobs")
@@ -180,8 +194,10 @@ class CrawlJobs:
 
     @staticmethod
     def save_to_excel(df, file):
+        """Saves the current dataframe to an excel sheet"""
         with pd.ExcelWriter(file, engine="xlsxwriter") as writer:
             df.to_excel(writer, sheet_name="Sheet1", index=False)
 
     def close_driver(self):
+        """Closes the chrome driver"""
         self.driver.close()
