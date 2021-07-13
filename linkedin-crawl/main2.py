@@ -7,21 +7,23 @@ import playsound
 import random
 import speech_recognition as sr
 
-recog = sr.Recognizer()
+recog = sr.Recognizer()     # Initiating speech recognizer
 
 
 def parse_config():
+    """Parses conf.ini configuration file for usernames and passwords"""
     config = configparser.ConfigParser()
     config.read("conf.ini")
     return config["linkedInAccount"], config["chromedriver"]
 
 
 def get_voice_input(ask=False):
-    with sr.Microphone(device_index=1) as source:
-        recog.adjust_for_ambient_noise(source)
+    """Captures voice inputs"""
+    with sr.Microphone(device_index=1) as source:   # Using microphone connected at device source 1 as source
+        recog.adjust_for_ambient_noise(source)      # Handling noise while listening through the source
         if ask:
-            speak_back(ask)
-        audio = recog.listen(source, 10, 3)
+            speak_back(ask)     # Speaks back all the user prompts and replies
+        audio = recog.listen(source, 10, 3)     # Times out in 10 seconds and stops listening after 3 seconds
         voice_data = ''
         try:
             voice_data = recog.recognize_google(audio)
@@ -33,21 +35,23 @@ def get_voice_input(ask=False):
 
 
 def speak_back(audio_string):
+    """Converts text to speech using Google's Text to Speech service (gTTS)"""
     tts = gTTS(text=audio_string, lang='en')
     num = random.randint(1, 100000000)
-    audio_file = 'audio-' + str(num) + '.mp3'
+    audio_file = 'audio-' + str(num) + '.mp3'   # Temporarily saves the audio file with the string audio
     tts.save(audio_file)
-    playsound.playsound(audio_file)
+    playsound.playsound(audio_file)     # Plays the audio file
     print(audio_string)
-    os.remove(audio_file)
+    os.remove(audio_file)       # Deletes the audio file afterwards
 
 
 def respond(data):
-    if "hello friend" in data:
+    """The main function that defines all the replies and the tasks the voice assistant is capable to doing"""
+    if "hello friend" in data:      # Responds to 'hello friend'
         task = get_voice_input("Hi Tushar, what can I do?")
         if "default" in task and "task" in task:
             speak_back("I am on it!")
-            script()
+            script()    # Calls the script function with default parameters and runs the crawljobs module process
             return
         if "search" in task and "jobs" in task:
             kws = get_voice_input("Any keywords?")
@@ -93,7 +97,7 @@ def respond(data):
                 pages = 10
             else:
                 pages = w2n.word_to_num(pgs)
-            # Run script with spoken parameters
+            # Calls the script function with collected parameters and runs the crawljobs module process
             speak_back("I am on it!")
             script(keywords=keywords, location=location, exp_filter=exp_filter, jobtype_filter=jobtype_filter,
                    pages=pages)
@@ -104,6 +108,8 @@ def respond(data):
 
 def script(keywords="Python Developer", location="United States",
            exp_filter=['Entry level', 'Associate'], jobtype_filter=['Full-time'], pages=10):
+    """Calls the crawljobs module and runs the jobs-scraping script after capturing all the arguments
+    required for the script"""
     # Parsing config.ini file
     linkedin, chrome = parse_config()
     homepage, username, password = linkedin["homepage"], linkedin["username"], linkedin["password"]
