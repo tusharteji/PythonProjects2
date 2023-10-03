@@ -5,6 +5,6 @@ playsound==1.2.2
 PyAudio==0.2.11
 selenium==3.141.0
 speechrecognition==3.8.1
-urllib3==1.26.6
+urllib3==1.26.17
 word2number==1.1
 xlsxwriter==1.4.4
